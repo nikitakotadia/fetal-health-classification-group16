@@ -1,1 +1,1 @@
-# fetal-health-classification-group16
+Group 16 repository for the Fetal Health Classification project.
