@@ -1,0 +1,2 @@
+CTU-UHB Intrapartum Cardiotocography Database used for the external validation feasibility test (see notebook 05). Not included in this repository due to size. Download from: https://physionet.org/content/ctu-uhb-ctgdb/1.0.0/
+To reproduce: download records 1001–1003 (or any subset) into this folder before running 05_ctu_feasibility_test.ipynb.
