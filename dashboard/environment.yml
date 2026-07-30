@@ -7,5 +7,4 @@ dependencies:
   - pip:
       - streamlit
       - pandas
-      - matplotlib
-      
+      - plotly
