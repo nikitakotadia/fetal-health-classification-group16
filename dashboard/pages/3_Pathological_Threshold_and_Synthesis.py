@@ -33,7 +33,15 @@ def load_threshold_data():
     """Load the real sweep results if the repo has them saved; otherwise
     fall back to the exact values already confirmed during development."""
     if THRESHOLD_SWEEP_CSV.exists():
-        return pd.read_csv(THRESHOLD_SWEEP_CSV)
+        df = pd.read_csv(THRESHOLD_SWEEP_CSV)
+        return df.rename(columns={
+            "Accuracy_mean": "Accuracy",
+            "Macro F1_mean": "Macro F1",
+            "Pathological Recall_mean": "Pathological Recall",
+            "Pathological Precision_mean": "Pathological Precision",
+            "F1 - Pathological_mean": "Pathological F1",
+            "MCC_mean": "MCC",
+        })
     return pd.DataFrame({
         "Threshold": [0.10, 0.15, 0.20, 0.25, 0.30],
         "Pathological Recall": [0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
