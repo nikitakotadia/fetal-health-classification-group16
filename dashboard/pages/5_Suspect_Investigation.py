@@ -4,8 +4,8 @@ Owner: Mamatha
 
 Standalone: streamlit run dashboard/pages/5_Suspect_Investigation.py
 
-Shows the precision-recall-F1 trade-off for the UCI Suspect class as the
-probability threshold changes from 0.30 to 0.70.
+Interactive threshold sweep for the UCI Suspect class, showing how the
+decision boundary changes precision, recall, F1, and predicted count.
 
 Source: outputs/evaluation/suspect_threshold_sweep.csv
 """
@@ -20,10 +20,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "outputs" / "evaluation"
 
 st.set_page_config(page_title="Suspect Investigation", page_icon="🔎", layout="wide")
-
-# ------------------------------------------------------------------
-# Palette -- Midnight Executive (matches the other dashboard pages)
-# ------------------------------------------------------------------
 
 NAVY = "#1E2761"
 PURPLE = "#6C3FC4"
@@ -66,9 +62,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ------------------------------------------------------------------
-# Data
-# ------------------------------------------------------------------
 
 @st.cache_data
 def load_suspect_sweep() -> pd.DataFrame:
@@ -107,10 +100,6 @@ def base_layout(fig: go.Figure, height: int = 290, legend: bool = True) -> go.Fi
     return fig
 
 
-# ------------------------------------------------------------------
-# Banner + KPIs
-# ------------------------------------------------------------------
-
 st.markdown(
     """
     <div class="dash-banner">
@@ -122,6 +111,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+metric_options = ["Precision", "Recall", "F1"]
+selected_metric = st.selectbox("Focus metric", metric_options, index=2)
+active_threshold = st.slider(
+    "Selected decision threshold",
+    min_value=float(sweep_df["Threshold"].min()),
+    max_value=float(sweep_df["Threshold"].max()),
+    value=float(best_row["Threshold"]),
+    step=0.05,
+)
+active_row = sweep_df.loc[sweep_df["Threshold"].sub(active_threshold).abs().idxmin()]
+
 st.markdown(
     f"""
     <div class="kpi-row">
@@ -130,31 +130,27 @@ st.markdown(
             <div class="sub">Highest harmonic balance</div>
         </div>
         <div class="kpi-card" style="background:{PURPLE};">
-            <div class="label">Best Suspect F1</div><div class="value">{best_row['F1']:.3f}</div>
-            <div class="sub">Precision {best_row['Precision']:.3f}</div>
+            <div class="label">Selected Threshold</div><div class="value">{active_threshold:.2f}</div>
+            <div class="sub">{selected_metric}: {active_row[selected_metric]:.3f}</div>
         </div>
         <div class="kpi-card" style="background:{AMBER};">
             <div class="label">Recall Gain vs. 0.50</div><div class="value">+{recall_gain_pp:.2f} pp</div>
             <div class="sub">Only {extra_flags:+d} extra Suspect flags</div>
         </div>
         <div class="kpi-card" style="background:{GREEN};">
-            <div class="label">Highest Precision</div><div class="value">{high_precision_row['Precision']:.3f}</div>
-            <div class="sub">At threshold {high_precision_row['Threshold']:.2f}</div>
+            <div class="label">Predicted Suspect Count</div><div class="value">{active_row['Predicted_Suspect_Count']}</div>
+            <div class="sub">Precision {active_row['Precision']:.3f}</div>
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# ------------------------------------------------------------------
-# Charts
-# ------------------------------------------------------------------
-
 col1, col2 = st.columns(2)
 
 with col1:
     with st.container(border=True):
-        st.markdown('<div class="panel-title">Precision–Recall–F1 Trade-off</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-title">Precision–Recall–F1 Sweep</div>', unsafe_allow_html=True)
         fig = go.Figure()
         line_specs = [
             ("Precision", BLUE),
@@ -174,22 +170,32 @@ with col1:
                 )
             )
         fig.add_vline(
-            x=best_row["Threshold"],
+            x=active_threshold,
             line_dash="dash",
-            line_color=NAVY,
-            annotation_text="Best F1",
+            line_color=RED,
+            annotation_text=f"Threshold {active_threshold:.2f}",
             annotation_font_size=9,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[active_threshold],
+                y=[active_row[selected_metric]],
+                mode="markers",
+                marker=dict(color=RED, size=12, symbol="diamond"),
+                name="Selected point",
+                hovertemplate=f"Threshold {active_threshold:.2f}<br>{selected_metric}: {active_row[selected_metric]:.4f}<extra></extra>",
+            )
         )
         base_layout(fig)
         fig.update_xaxes(tickformat=".2f", dtick=0.05)
         fig.update_yaxes(range=[0.72, 0.98], tickformat=".2f")
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 with col2:
     with st.container(border=True):
-        st.markdown('<div class="panel-title">Predicted Suspect Count by Threshold</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-title">Prediction Volume by Threshold</div>', unsafe_allow_html=True)
         bar_colors = [
-            PURPLE if abs(t - best_row["Threshold"]) < 1e-9
+            RED if abs(t - active_threshold) < 1e-9
             else NAVY if abs(t - 0.50) < 1e-9
             else MUTED
             for t in sweep_df["Threshold"]
@@ -208,9 +214,8 @@ with col2:
         base_layout(fig2, legend=False)
         fig2.update_xaxes(tickformat=".2f", dtick=0.05)
         fig2.update_yaxes(range=[42, 56], dtick=2)
-        st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig2, width="stretch", config={"displayModeBar": False})
 
 st.caption(
-    "Lowering the threshold to 0.30 gives the best binary Suspect F1 and modestly improves recall; "
-    "raising it increases precision but misses more true Suspect cases."
+    "Lowering the threshold to 0.30 increases recall and gives the best Suspect F1; moving higher trims flags but is more conservative."
 )
