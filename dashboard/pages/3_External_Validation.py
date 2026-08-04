@@ -18,6 +18,7 @@ Source: outputs/evaluation/ctu_external_validation_comparison.csv,
 import sys
 from pathlib import Path
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -66,10 +67,51 @@ st.markdown(
     div[data-testid="stVerticalBlockBorderWrapper"] {{ border-radius: 10px !important; border-color: #E4E8F2 !important; box-shadow: 0 2px 8px rgba(30,39,97,0.07); }}
     .panel-title {{ font-weight: 700; font-size: 0.8rem; color: {NAVY}; margin-bottom: 0.2rem; }}
     .stCaption, small {{ font-size: 0.68rem !important; }}
+
+    section[data-testid="stSidebar"] > div {{ display: flex; flex-direction: column; height: 100%; }}
+    .sidebar-print-spacer {{ flex-grow: 1; }}
+    @media print {{
+        section[data-testid="stSidebar"] {{ display: none !important; }}
+        header[data-testid="stHeader"] {{ display: none !important; }}
+        .block-container {{ padding-top: 0 !important; }}
+    }}
+
+    /* Sidebar can no longer be collapsed -- always rendered open */
+    section[data-testid="stSidebar"] {{
+        min-width: 260px !important;
+        max-width: 260px !important;
+        width: 260px !important;
+        transform: none !important;
+        visibility: visible !important;
+        margin-left: 0px !important;
+    }}
+    [data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
+    [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+st.sidebar.markdown('<div class="sidebar-print-spacer"></div>', unsafe_allow_html=True)
+with st.sidebar:
+    components.html(
+        f"""
+        <button id="printPageBtn" style="
+            display:block; width:100%; box-sizing:border-box;
+            background:{NAVY}; color:white; border:none; border-radius:8px;
+            padding:0.55rem 0.8rem; font-size:0.78rem; font-weight:700;
+            cursor:pointer; box-shadow:0 2px 8px rgba(30,39,97,0.2);
+            font-family:Arial, Helvetica, sans-serif;">
+            🖨️ Print This Page
+        </button>
+        <script>
+        document.getElementById('printPageBtn').addEventListener('click', function() {{
+            window.parent.print();
+        }});
+        </script>
+        """,
+        height=46,
+    )
 
 # ------------------------------------------------------------------
 # Data
@@ -88,16 +130,16 @@ def load_smote_comparison() -> pd.DataFrame:
 summary = load_ctu_indomain_summary().set_index("Metric")
 smote = load_smote_comparison().set_index("Metric")
 
-def base_layout(fig, height=290, legend=True):
+def base_layout(fig, height=460, legend=True, xaxis_title="", yaxis_title=""):
     fig.update_layout(
         font=dict(family="Arial, Helvetica, sans-serif", color=INK, size=11),
         plot_bgcolor="white", paper_bgcolor="white", height=height,
-        margin=dict(t=8, b=30, l=44, r=16),
+        margin=dict(t=8, b=44, l=54, r=16),
         legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0, font=dict(size=10)) if legend else None,
         showlegend=legend,
     )
-    fig.update_xaxes(gridcolor=GRIDCOLOR, zeroline=False)
-    fig.update_yaxes(gridcolor=GRIDCOLOR, zeroline=False)
+    fig.update_xaxes(gridcolor=GRIDCOLOR, zeroline=False, title=dict(text=xaxis_title, font=dict(size=10)))
+    fig.update_yaxes(gridcolor=GRIDCOLOR, zeroline=False, title=dict(text=yaxis_title, font=dict(size=10)))
     return fig
 
 # ------------------------------------------------------------------
@@ -109,7 +151,7 @@ st.markdown(
     <div class="dash-banner">
         <p class="eyebrow">Page 3</p>
         <h1>CTU-UHB Validation</h1>
-        <p>07_ctu_external_validation.ipynb — in-domain, 5-fold CV</p>
+        <p>In-domain, 5-fold CV retraining on CTU-UHB, with SMOTE comparison</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -161,7 +203,7 @@ with col1:
             x=labels, y=values, error_y=dict(type="data", array=errors, color=INK),
             marker_color=[GREEN, AMBER, RED],
         ))
-        base_layout(fig, legend=False)
+        base_layout(fig, legend=False, xaxis_title="Class", yaxis_title="F1 Score")
         fig.update_yaxes(range=[0, 1])
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
@@ -174,14 +216,6 @@ with col2:
                                y=[smote.loc[m, "No resampling"] for m in metrics_to_show], marker_color=MUTED))
         fig2.add_trace(go.Bar(name="With SMOTE", x=metrics_to_show,
                                y=[smote.loc[m, "With SMOTE"] for m in metrics_to_show], marker_color=PURPLE))
-        base_layout(fig2)
+        base_layout(fig2, xaxis_title="Metric", yaxis_title="Score")
         fig2.update_layout(barmode="group")
         st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
-
-with st.container(border=True):
-    st.caption(
-        "In-domain CTU-UHB performance (train + test both from CTU-UHB), not a cross-dataset "
-        "transfer — chosen because UCI's expert-read label and CTU-UHB's outcome-proxy label are "
-        "different constructs. SMOTE moves Pathological Recall off zero (0.067) but only 1 of 13 "
-        "records is ever caught, in a single fold — std (0.149) as large as the mean."
-    )

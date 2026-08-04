@@ -1,0 +1,10 @@
+# Force a light theme regardless of the viewer's OS/browser dark-mode
+# setting -- the dashboard's CSS (banners, KPI cards, chart colours) is
+# designed against a white background and looks wrong on dark.
+[theme]
+base = "light"
+primaryColor = "#6C3FC4"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F8FC"
+textColor = "#1E2761"
+font = "sans serif"

@@ -15,6 +15,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "outputs" / "evaluation"
@@ -57,10 +58,51 @@ st.markdown(
     div[data-testid="stVerticalBlockBorderWrapper"] {{ border-radius: 10px !important; border-color: #E4E8F2 !important; box-shadow: 0 2px 8px rgba(30,39,97,0.07); }}
     .panel-title {{ font-weight: 700; font-size: 0.8rem; color: {NAVY}; margin-bottom: 0.2rem; }}
     .stCaption, small {{ font-size: 0.68rem !important; }}
+
+    section[data-testid="stSidebar"] > div {{ display: flex; flex-direction: column; height: 100%; }}
+    .sidebar-print-spacer {{ flex-grow: 1; }}
+    @media print {{
+        section[data-testid="stSidebar"] {{ display: none !important; }}
+        header[data-testid="stHeader"] {{ display: none !important; }}
+        .block-container {{ padding-top: 0 !important; }}
+    }}
+
+    /* Sidebar can no longer be collapsed -- always rendered open */
+    section[data-testid="stSidebar"] {{
+        min-width: 260px !important;
+        max-width: 260px !important;
+        width: 260px !important;
+        transform: none !important;
+        visibility: visible !important;
+        margin-left: 0px !important;
+    }}
+    [data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
+    [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+st.sidebar.markdown('<div class="sidebar-print-spacer"></div>', unsafe_allow_html=True)
+with st.sidebar:
+    components.html(
+        f"""
+        <button id="printPageBtn" style="
+            display:block; width:100%; box-sizing:border-box;
+            background:{NAVY}; color:white; border:none; border-radius:8px;
+            padding:0.55rem 0.8rem; font-size:0.78rem; font-weight:700;
+            cursor:pointer; box-shadow:0 2px 8px rgba(30,39,97,0.2);
+            font-family:Arial, Helvetica, sans-serif;">
+            🖨️ Print This Page
+        </button>
+        <script>
+        document.getElementById('printPageBtn').addEventListener('click', function() {{
+            window.parent.print();
+        }});
+        </script>
+        """,
+        height=46,
+    )
 
 
 @st.cache_data
@@ -81,13 +123,14 @@ recall_gain_pp = (best_row["Recall"] - default_row["Recall"]) * 100
 extra_flags = int(best_row["Predicted_Suspect_Count"] - default_row["Predicted_Suspect_Count"])
 
 
-def base_layout(fig: go.Figure, height: int = 290, legend: bool = True) -> go.Figure:
+def base_layout(fig: go.Figure, height: int = 290, legend: bool = True,
+                 xaxis_title: str = "", yaxis_title: str = "") -> go.Figure:
     fig.update_layout(
         font=dict(family="Arial, Helvetica, sans-serif", color=INK, size=11),
         plot_bgcolor="white",
         paper_bgcolor="white",
         height=height,
-        margin=dict(t=8, b=34, l=48, r=16),
+        margin=dict(t=8, b=46, l=54, r=16),
         legend=(
             dict(orientation="h", yanchor="bottom", y=1.0, x=0, font=dict(size=9))
             if legend else None
@@ -95,8 +138,10 @@ def base_layout(fig: go.Figure, height: int = 290, legend: bool = True) -> go.Fi
         showlegend=legend,
         hovermode="x unified",
     )
-    fig.update_xaxes(gridcolor=GRIDCOLOR, zeroline=False)
-    fig.update_yaxes(gridcolor=GRIDCOLOR, zeroline=False)
+    fig.update_xaxes(gridcolor=GRIDCOLOR, zeroline=False,
+                      title=dict(text=xaxis_title, font=dict(size=10)))
+    fig.update_yaxes(gridcolor=GRIDCOLOR, zeroline=False,
+                      title=dict(text=yaxis_title, font=dict(size=10)))
     return fig
 
 
@@ -104,7 +149,7 @@ st.markdown(
     """
     <div class="dash-banner">
         <p class="eyebrow">Page 5</p>
-        <h1>Suspect Investigation — UCI</h1>
+        <h1>Suspect Investigation - UCI</h1>
         <p>Threshold sweep for the minority Suspect class</p>
     </div>
     """,
@@ -150,7 +195,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     with st.container(border=True):
-        st.markdown('<div class="panel-title">Precision–Recall–F1 Sweep</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-title">Precision-Recall-F1 Sweep</div>', unsafe_allow_html=True)
         fig = go.Figure()
         line_specs = [
             ("Precision", BLUE),
@@ -186,7 +231,7 @@ with col1:
                 hovertemplate=f"Threshold {active_threshold:.2f}<br>{selected_metric}: {active_row[selected_metric]:.4f}<extra></extra>",
             )
         )
-        base_layout(fig)
+        base_layout(fig, xaxis_title="Decision Threshold", yaxis_title="Score")
         fig.update_xaxes(tickformat=".2f", dtick=0.05)
         fig.update_yaxes(range=[0.72, 0.98], tickformat=".2f")
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
@@ -211,11 +256,8 @@ with col2:
                 hovertemplate="Threshold %{x:.2f}<br>Predicted Suspect: %{y}<extra></extra>",
             )
         )
-        base_layout(fig2, legend=False)
+        base_layout(fig2, legend=False, xaxis_title="Decision Threshold", yaxis_title="Predicted Suspect Count")
         fig2.update_xaxes(tickformat=".2f", dtick=0.05)
         fig2.update_yaxes(range=[42, 56], dtick=2)
         st.plotly_chart(fig2, width="stretch", config={"displayModeBar": False})
 
-st.caption(
-    "Lowering the threshold to 0.30 increases recall and gives the best Suspect F1; moving higher trims flags but is more conservative."
-)

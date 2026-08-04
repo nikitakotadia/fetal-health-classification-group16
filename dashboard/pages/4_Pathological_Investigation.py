@@ -1,4 +1,4 @@
-# Pathological Investigation (CTU-UHB) — Shreya
+# Pathological Investigation (CTU-UHB) - Shreya
 """
 Dashboard page: Pathological Investigation (CTU-UHB)
 Owner: Shreya
@@ -13,6 +13,7 @@ Source: outputs/evaluation/ctu_threshold_sweep.csv,
 import sys
 from pathlib import Path
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -59,10 +60,51 @@ st.markdown(
     div[data-testid="stVerticalBlockBorderWrapper"] {{ border-radius: 10px !important; border-color: #E4E8F2 !important; box-shadow: 0 2px 8px rgba(30,39,97,0.07); }}
     .panel-title {{ font-weight: 700; font-size: 0.8rem; color: {NAVY}; margin-bottom: 0.2rem; }}
     .stCaption, small {{ font-size: 0.68rem !important; }}
+
+    section[data-testid="stSidebar"] > div {{ display: flex; flex-direction: column; height: 100%; }}
+    .sidebar-print-spacer {{ flex-grow: 1; }}
+    @media print {{
+        section[data-testid="stSidebar"] {{ display: none !important; }}
+        header[data-testid="stHeader"] {{ display: none !important; }}
+        .block-container {{ padding-top: 0 !important; }}
+    }}
+
+    /* Sidebar can no longer be collapsed -- always rendered open */
+    section[data-testid="stSidebar"] {{
+        min-width: 260px !important;
+        max-width: 260px !important;
+        width: 260px !important;
+        transform: none !important;
+        visibility: visible !important;
+        margin-left: 0px !important;
+    }}
+    [data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
+    [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+st.sidebar.markdown('<div class="sidebar-print-spacer"></div>', unsafe_allow_html=True)
+with st.sidebar:
+    components.html(
+        f"""
+        <button id="printPageBtn" style="
+            display:block; width:100%; box-sizing:border-box;
+            background:{NAVY}; color:white; border:none; border-radius:8px;
+            padding:0.55rem 0.8rem; font-size:0.78rem; font-weight:700;
+            cursor:pointer; box-shadow:0 2px 8px rgba(30,39,97,0.2);
+            font-family:Arial, Helvetica, sans-serif;">
+            🖨️ Print This Page
+        </button>
+        <script>
+        document.getElementById('printPageBtn').addEventListener('click', function() {{
+            window.parent.print();
+        }});
+        </script>
+        """,
+        height=46,
+    )
 
 # ------------------------------------------------------------------
 # Data
@@ -94,16 +136,16 @@ MIN_THRESHOLD_TESTED = 0.10
 MAX_TRUE_CONFIDENCE = max(TRUE_PATHOLOGICAL_PROBS)
 N_PATHOLOGICAL = len(TRUE_PATHOLOGICAL_PROBS)
 
-def base_layout(fig, height=280, legend=True):
+def base_layout(fig, height=280, legend=True, xaxis_title="", yaxis_title=""):
     fig.update_layout(
         font=dict(family="Arial, Helvetica, sans-serif", color=INK, size=11),
         plot_bgcolor="white", paper_bgcolor="white", height=height,
-        margin=dict(t=8, b=30, l=44, r=16),
+        margin=dict(t=8, b=44, l=54, r=16),
         legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0, font=dict(size=10)) if legend else None,
         showlegend=legend,
     )
-    fig.update_xaxes(gridcolor=GRIDCOLOR, zeroline=False)
-    fig.update_yaxes(gridcolor=GRIDCOLOR, zeroline=False)
+    fig.update_xaxes(gridcolor=GRIDCOLOR, zeroline=False, title=dict(text=xaxis_title, font=dict(size=10)))
+    fig.update_yaxes(gridcolor=GRIDCOLOR, zeroline=False, title=dict(text=yaxis_title, font=dict(size=10)))
     return fig
 
 # ------------------------------------------------------------------
@@ -114,8 +156,8 @@ st.markdown(
     """
     <div class="dash-banner">
         <p class="eyebrow">Page 4</p>
-        <h1>Pathological Investigation — CTU-UHB</h1>
-        <p>08_ctu_threshold_tuning.ipynb — threshold sweep + confidence diagnosis</p>
+        <h1>Pathological Investigation - CTU-UHB</h1>
+        <p>Threshold sweep and confidence diagnosis for the minority Pathological class</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -129,7 +171,7 @@ st.markdown(
             <div class="sub">of 552 total</div>
         </div>
         <div class="kpi-card" style="background:{BLUE};">
-            <div class="label">Thresholds Tested</div><div class="value">{MIN_THRESHOLD_TESTED:.2f}–0.30</div>
+            <div class="label">Thresholds Tested</div><div class="value">{MIN_THRESHOLD_TESTED:.2f}-0.30</div>
             <div class="sub">5-fold CV</div>
         </div>
         <div class="kpi-card" style="background:{RED};">
@@ -149,18 +191,27 @@ st.markdown(
 # Sweep + Diagnosis
 # ------------------------------------------------------------------
 
-col1, col2 = st.columns([1, 1.2])
+col1, col2, col3 = st.columns([1, 1, 1])
+
+compact_cols = ["Threshold", "Pathological Recall", "Pathological Precision", "Pathological F1"]
+compact_cols = [c for c in compact_cols if c in display_cols]
 
 with col1:
     with st.container(border=True):
         st.markdown('<div class="panel-title">Sweep Results</div>', unsafe_allow_html=True)
         st.dataframe(
-            sweep_df[display_cols].style.format(
-                {c: ("{:.2f}" if c == "Threshold" else "{:.4f}") for c in display_cols}
+            sweep_df[compact_cols].style.format(
+                {c: ("{:.2f}" if c == "Threshold" else "{:.4f}") for c in compact_cols}
             ),
-            use_container_width=True, hide_index=True, height=200,
+            use_container_width=True, hide_index=True, height=325,
+            column_config={
+                "Threshold": st.column_config.NumberColumn(width="small"),
+                "Pathological Recall": st.column_config.NumberColumn("Recall", width="small"),
+                "Pathological Precision": st.column_config.NumberColumn("Precision", width="small"),
+                "Pathological F1": st.column_config.NumberColumn("F1", width="small"),
+            },
         )
-        st.caption("Flat null: Recall/Precision/F1 all 0.0000 at every threshold tested.")
+        st.caption("Flat null: Recall/Precision/F1 all 0.0000 at every threshold.")
 
 with col2:
     with st.container(border=True):
@@ -177,32 +228,22 @@ with col2:
             mode="lines+markers", name="Precision",
             line=dict(color=RED, width=3, dash="dash"), marker=dict(size=8, symbol="square"),
         ))
-        base_layout(fig, height=210)
+        base_layout(fig, height=380, xaxis_title="Decision Threshold", yaxis_title="Score")
         fig.update_yaxes(range=[-0.05, 1.05])
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-col3, col4 = st.columns([1.3, 1])
-
 with col3:
     with st.container(border=True):
-        st.markdown('<div class="panel-title">Model Confidence — 13 True Pathological Cases</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-title">Model Confidence - 13 True Cases</div>', unsafe_allow_html=True)
         ranked = sorted(TRUE_PATHOLOGICAL_PROBS, reverse=True)
         bar_colors = [RED if p >= MIN_THRESHOLD_TESTED else MUTED for p in ranked]
         fig2 = go.Figure(go.Bar(x=list(range(1, len(ranked) + 1)), y=ranked, marker_color=bar_colors))
         fig2.add_hline(y=MIN_THRESHOLD_TESTED, line_dash="dash", line_color=INK,
                         annotation_text="Min. threshold", annotation_font_size=9)
-        base_layout(fig2, height=210, legend=False)
+        base_layout(fig2, height=380, legend=False,
+                    xaxis_title="Case Rank (highest confidence first)",
+                    yaxis_title="P(Pathological)")
         fig2.update_yaxes(range=[0, 0.15])
         st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
-
-with col4:
-    with st.container(border=True):
-        st.markdown('<div class="panel-title">Reading</div>', unsafe_allow_html=True)
-        st.metric("Max confidence (true Pathological)", f"{MAX_TRUE_CONFIDENCE:.4f}")
-        st.metric("Lowest threshold tested", f"{MIN_THRESHOLD_TESTED:.2f}")
-        st.caption(
-            "Max confidence sits below the lowest threshold tested — no threshold could have "
-            "caught these cases. Corroborates SHAP: signal 3–10x weaker than other classes."
-        )
 
 st.caption("Source: 08_ctu_threshold_tuning.ipynb (Shreya)")

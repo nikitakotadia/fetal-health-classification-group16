@@ -1,4 +1,4 @@
-# Baseline Models (UCI) — Gnaneshwar
+# Baseline Models (UCI) - Gnaneshwar
 """
 Dashboard page: Baseline Models (UCI)
 Owner: Gnaneshwar
@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "outputs" / "evaluation"
@@ -58,24 +59,66 @@ st.markdown(
     div[data-testid="stVerticalBlockBorderWrapper"] {{ border-radius: 10px !important; border-color: #E4E8F2 !important; box-shadow: 0 2px 8px rgba(30,39,97,0.07); }}
     .panel-title {{ font-weight: 700; font-size: 0.8rem; color: {NAVY}; margin-bottom: 0.2rem; }}
     .stCaption, small {{ font-size: 0.68rem !important; }}
+
+    section[data-testid="stSidebar"] > div {{ display: flex; flex-direction: column; height: 100%; }}
+    .sidebar-print-spacer {{ flex-grow: 1; }}
+    @media print {{
+        section[data-testid="stSidebar"] {{ display: none !important; }}
+        header[data-testid="stHeader"] {{ display: none !important; }}
+        .block-container {{ padding-top: 0 !important; }}
+    }}
+
+    /* Sidebar can no longer be collapsed -- always rendered open */
+    section[data-testid="stSidebar"] {{
+        min-width: 260px !important;
+        max-width: 260px !important;
+        width: 260px !important;
+        transform: none !important;
+        visibility: visible !important;
+        margin-left: 0px !important;
+    }}
+    [data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
+    [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+st.sidebar.markdown('<div class="sidebar-print-spacer"></div>', unsafe_allow_html=True)
+with st.sidebar:
+    components.html(
+        f"""
+        <button id="printPageBtn" style="
+            display:block; width:100%; box-sizing:border-box;
+            background:{NAVY}; color:white; border:none; border-radius:8px;
+            padding:0.55rem 0.8rem; font-size:0.78rem; font-weight:700;
+            cursor:pointer; box-shadow:0 2px 8px rgba(30,39,97,0.2);
+            font-family:Arial, Helvetica, sans-serif;">
+            🖨️ Print This Page
+        </button>
+        <script>
+        document.getElementById('printPageBtn').addEventListener('click', function() {{
+            window.parent.print();
+        }});
+        </script>
+        """,
+        height=46,
+    )
+
 
 @st.cache_data
 def load_baseline_results() -> pd.DataFrame:
     df = pd.read_csv(EVAL_DIR / "model_comparison_full.csv")
+    df.columns = [c.replace(chr(0x2013), "-").replace(chr(0x2014), "-") for c in df.columns]
     required = {
         "Model",
         "Accuracy",
         "Weighted F1",
         "ROC-AUC",
         "MCC",
-        "F1 — Normal",
-        "F1 — Suspect",
-        "F1 — Pathological",
+        "F1 - Normal",
+        "F1 - Suspect",
+        "F1 - Pathological",
     }
     missing = required.difference(df.columns)
     if missing:
@@ -86,13 +129,14 @@ def load_baseline_results() -> pd.DataFrame:
 baseline_df = load_baseline_results()
 
 
-def base_layout(fig: go.Figure, height: int = 290, legend: bool = True) -> go.Figure:
+def base_layout(fig: go.Figure, height: int = 330, legend: bool = True,
+                 xaxis_title: str = "", yaxis_title: str = "") -> go.Figure:
     fig.update_layout(
         font=dict(family="Arial, Helvetica, sans-serif", color=INK, size=11),
         plot_bgcolor="white",
         paper_bgcolor="white",
         height=height,
-        margin=dict(t=8, b=32, l=46, r=16),
+        margin=dict(t=8, b=44, l=54, r=16),
         legend=(
             dict(orientation="h", yanchor="bottom", y=1.0, x=0, font=dict(size=9))
             if legend else None
@@ -100,8 +144,10 @@ def base_layout(fig: go.Figure, height: int = 290, legend: bool = True) -> go.Fi
         showlegend=legend,
         hovermode="x unified",
     )
-    fig.update_xaxes(gridcolor=GRIDCOLOR, zeroline=False, tickfont=dict(size=9))
-    fig.update_yaxes(gridcolor=GRIDCOLOR, zeroline=False)
+    fig.update_xaxes(gridcolor=GRIDCOLOR, zeroline=False, tickfont=dict(size=9),
+                      title=dict(text=xaxis_title, font=dict(size=10)))
+    fig.update_yaxes(gridcolor=GRIDCOLOR, zeroline=False,
+                      title=dict(text=yaxis_title, font=dict(size=10)))
     return fig
 
 
@@ -109,7 +155,7 @@ st.markdown(
     """
     <div class="dash-banner">
         <p class="eyebrow">Page 1</p>
-        <h1>Baseline Models — UCI</h1>
+        <h1>Baseline Models - UCI</h1>
         <p>Seven classifiers compared on overall and class-level performance</p>
     </div>
     """,
@@ -121,8 +167,8 @@ selected_metric = st.selectbox("Focus metric", metric_options, index=1)
 
 ranked_df = baseline_df.sort_values(selected_metric, ascending=False).reset_index(drop=True)
 best_overall = ranked_df.iloc[0]
-best_suspect = baseline_df.loc[baseline_df["F1 — Suspect"].idxmax()]
-best_pathological = baseline_df.loc[baseline_df["F1 — Pathological"].idxmax()]
+best_suspect = baseline_df.loc[baseline_df["F1 - Suspect"].idxmax()]
+best_pathological = baseline_df.loc[baseline_df["F1 - Pathological"].idxmax()]
 
 st.markdown(
     f"""
@@ -136,11 +182,11 @@ st.markdown(
             <div class="sub">{baseline_df.loc[baseline_df['Accuracy'].idxmax(), 'Model']}</div>
         </div>
         <div class="kpi-card" style="background:{AMBER};">
-            <div class="label">Best Suspect F1</div><div class="value">{best_suspect['F1 — Suspect']:.3f}</div>
+            <div class="label">Best Suspect F1</div><div class="value">{best_suspect['F1 - Suspect']:.3f}</div>
             <div class="sub">{best_suspect['Model']}</div>
         </div>
         <div class="kpi-card" style="background:{GREEN};">
-            <div class="label">Best Pathological F1</div><div class="value">{best_pathological['F1 — Pathological']:.3f}</div>
+            <div class="label">Best Pathological F1</div><div class="value">{best_pathological['F1 - Pathological']:.3f}</div>
             <div class="sub">{best_pathological['Model']}</div>
         </div>
     </div>
@@ -152,7 +198,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     with st.container(border=True):
-        st.markdown('<div class="panel-title">Overall Metrics — Pick the Leaderboard View</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-title">Overall Metrics - Pick the Leaderboard View</div>', unsafe_allow_html=True)
         fig = go.Figure(
             go.Bar(
                 x=ranked_df["Model"],
@@ -163,7 +209,7 @@ with col1:
                 hovertemplate="%{x}<br>" + selected_metric + ": %{y:.4f}<extra></extra>",
             )
         )
-        base_layout(fig, legend=False)
+        base_layout(fig, legend=False, xaxis_title="Model", yaxis_title=selected_metric)
         fig.update_xaxes(tickangle=-24)
         fig.update_yaxes(range=[0.6, 1.0], tickformat=".2f")
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
@@ -173,9 +219,9 @@ with col2:
         st.markdown('<div class="panel-title">Per-Class F1 by Model</div>', unsafe_allow_html=True)
         fig2 = go.Figure()
         for column, label, color in [
-            ("F1 — Normal", "Normal", GREEN),
-            ("F1 — Suspect", "Suspect", AMBER),
-            ("F1 — Pathological", "Pathological", RED),
+            ("F1 - Normal", "Normal", GREEN),
+            ("F1 - Suspect", "Suspect", AMBER),
+            ("F1 - Pathological", "Pathological", RED),
         ]:
             fig2.add_trace(
                 go.Scatter(
@@ -188,11 +234,7 @@ with col2:
                     hovertemplate=f"%{{x}}<br>{label} F1: %{{y:.4f}}<extra></extra>",
                 )
             )
-        base_layout(fig2)
+        base_layout(fig2, xaxis_title="Model", yaxis_title="F1 Score")
         fig2.update_yaxes(range=[0.6, 1.02], tickformat=".2f")
         fig2.update_xaxes(tickangle=-24)
         st.plotly_chart(fig2, width="stretch", config={"displayModeBar": False})
-
-st.caption(
-    "XGBoost leads on the overall UCI benchmark, while the Suspect class remains the weakest spot across all seven models."
-)
