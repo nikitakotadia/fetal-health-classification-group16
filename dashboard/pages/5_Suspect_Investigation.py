@@ -67,17 +67,22 @@ st.markdown(
         .block-container {{ padding-top: 0 !important; }}
     }}
 
-    /* Sidebar can no longer be collapsed -- always rendered open */
-    section[data-testid="stSidebar"] {{
-        min-width: 260px !important;
-        max-width: 260px !important;
-        width: 260px !important;
-        transform: none !important;
-        visibility: visible !important;
-        margin-left: 0px !important;
+    /* Sidebar stays open and uncollapsible on desktop only -- on
+       mobile/narrow screens it keeps Streamlit's normal collapsible
+       behaviour (with its native reopen arrow) so it doesn't
+       permanently cover the whole viewport. */
+    @media (min-width: 769px) {{
+        section[data-testid="stSidebar"] {{
+            min-width: 260px !important;
+            max-width: 260px !important;
+            width: 260px !important;
+            transform: none !important;
+            visibility: visible !important;
+            margin-left: 0px !important;
+        }}
+        [data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
+        [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
     }}
-    [data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
-    [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
     </style>
     """,
     unsafe_allow_html=True,
